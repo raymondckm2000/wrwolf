@@ -3,9 +3,10 @@ import { LogEntry } from "../../engine/types";
 type LogPageProps = {
   logs: LogEntry[];
   onExport: () => void;
+  onReset: () => void;
 };
 
-export const LogPage = ({ logs, onExport }: LogPageProps) => {
+export const LogPage = ({ logs, onExport, onReset }: LogPageProps) => {
   const grouped = logs.reduce<Record<number, LogEntry[]>>((acc, entry) => {
     acc[entry.round] = acc[entry.round] ?? [];
     acc[entry.round].push(entry);
@@ -18,9 +19,14 @@ export const LogPage = ({ logs, onExport }: LogPageProps) => {
 
   return (
     <div className="page">
-      <button className="primary-button" type="button" onClick={onExport}>
-        匯出 JSON
-      </button>
+      <div className="control-row">
+        <button className="primary-button" type="button" onClick={onExport}>
+          匯出 JSON
+        </button>
+        <button className="secondary-button" type="button" onClick={onReset}>
+          重置遊戲
+        </button>
+      </div>
       {rounds.map((round) => (
         <div className="card" key={round}>
           <div className="card-title">第 {round} 回合</div>

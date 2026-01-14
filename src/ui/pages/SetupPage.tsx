@@ -16,7 +16,10 @@ const renderRoleSection = (
 ) => (
   <div className="card">
     <div className="card-title">
-      {title} <span className="badge">{roles.filter((r) => r.enabled).length}</span>
+      {title}{" "}
+      <span className="badge">
+        {roles.filter((r) => r.enabled).reduce((sum, role) => sum + role.count, 0)}
+      </span>
     </div>
     <div className="role-grid">
       {roles.map((role) => (

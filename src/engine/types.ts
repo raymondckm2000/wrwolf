@@ -24,6 +24,7 @@ export type Role = {
   };
   descriptionZh: string;
   enabled: boolean;
+  count: number;
 };
 
 export type Rules = {
@@ -48,7 +49,7 @@ export type LogEntry = {
 export type StepInput =
   | null
   | {
-      kind: "selectSeat" | "toggle" | "voteMatrix";
+      kind: "selectSeat" | "toggle" | "voteMatrix" | "witchAction" | "hunterShot";
       promptZh: string;
       allowNone?: boolean;
     };
@@ -93,11 +94,33 @@ export type GameState = {
   audioUnlocked: boolean;
   rulesLocked: boolean;
   dealSeatIndex: number;
-  pendingNightKill: number | null;
-  pendingWitchSave: boolean;
-  pendingWitchPoison: number | null;
-  pendingVotes: Record<number, number[]>;
-  pendingExecutionHunterTarget: number | null;
+  runtime: {
+    night: {
+      wolfTarget: number | null;
+      seerCheck: number | null;
+      witchSave: boolean;
+      witchPoisonTarget: number | null;
+      resolvedDeaths: number[];
+    };
+    day: {
+      voteMatrix: Record<number, number[]>;
+      executedSeat: number | null;
+      tieSeats: number[];
+      reVoteCount: number;
+    };
+    resources: {
+      witch: {
+        antidoteAvailable: boolean;
+        poisonAvailable: boolean;
+      };
+      hunter: {
+        shotAvailable: boolean;
+      };
+    };
+    pending: {
+      hunterShotFrom: number | null;
+    };
+  };
 };
 
 export type EngineAction =

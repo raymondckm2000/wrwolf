@@ -15,7 +15,9 @@ export const RoleTile = ({ role, onToggle }: RoleTileProps) => {
       <div className="card-title">{role.nameZh}</div>
       <div className="small">{role.descriptionZh}</div>
       <div style={{ marginTop: "12px" }}>
-        <span className="badge">{role.enabled ? "啟用" : "鎖定"}</span>
+        <span className="badge">
+          {role.enabled ? "啟用" : "鎖定"} × {role.count}
+        </span>
       </div>
     </button>
   );
