@@ -60,8 +60,8 @@ export const stepsConfig: StepConfig[] = [
     maxDurationSec: 20,
     requiresInput: true,
     input: {
-      kind: "selectSeat",
-      promptZh: "女巫選擇救/毒座位，或不使用",
+      kind: "witchAction",
+      promptZh: "女巫選擇是否解藥，並可選毒藥目標",
       allowNone: true
     }
   },
@@ -131,10 +131,23 @@ export const stepsConfig: StepConfig[] = [
     autoAdvance: true,
     minDurationSec: 2,
     maxDurationSec: 20,
+    requiresInput: false,
+    input: null
+  },
+  {
+    id: "HUNTER_RESOLVE",
+    phase: "DAY",
+    titleZh: "獵人開槍",
+    scriptZh: "獵人請選擇帶走對象。",
+    audioFile: null,
+    autoPlay: true,
+    autoAdvance: true,
+    minDurationSec: 2,
+    maxDurationSec: 20,
     requiresInput: true,
     input: {
-      kind: "selectSeat",
-      promptZh: "如有獵人技能，選擇帶走對象",
+      kind: "hunterShot",
+      promptZh: "獵人選擇帶走對象",
       allowNone: true
     }
   },

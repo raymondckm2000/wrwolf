@@ -216,6 +216,12 @@ input {
   font-weight: 600;
 }
 
+.seat-button.dead,
+.seat-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .seat-button.selected {
   background: #e94b5f;
   border-color: #e94b5f;

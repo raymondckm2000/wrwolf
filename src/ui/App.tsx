@@ -7,7 +7,7 @@ import {
   getStep,
   startNewGame
 } from "../engine/gameEngine";
-import { loadState, saveState } from "../engine/storage";
+import { clearState, loadState, saveState } from "../engine/storage";
 import { ConsoleOverlay } from "./pages/ConsoleOverlay";
 import { DealPage } from "./pages/DealPage";
 import { LogPage } from "./pages/LogPage";
@@ -37,7 +37,23 @@ export const App = () => {
     let mounted = true;
     loadState().then((saved) => {
       if (saved && mounted) {
-        setState(saved);
+        const fallback = createInitialState();
+        const rolesById = new Map(fallback.rolesPool.map((role) => [role.id, role]));
+        const mergedRoles = (saved.rolesPool ?? fallback.rolesPool).map((role) => ({
+          ...rolesById.get(role.id),
+          ...role
+        }));
+        setState({
+          ...fallback,
+          ...saved,
+          rolesPool: mergedRoles,
+          runtime: {
+            night: saved.runtime?.night ?? fallback.runtime.night,
+            day: saved.runtime?.day ?? fallback.runtime.day,
+            resources: saved.runtime?.resources ?? fallback.runtime.resources,
+            pending: saved.runtime?.pending ?? fallback.runtime.pending
+          }
+        });
       }
     });
     return () => {
@@ -47,6 +63,20 @@ export const App = () => {
 
   useEffect(() => {
     saveState(state).catch(() => null);
+  }, [state]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const enabledRoles = state.rolesPool.filter((role) => role.enabled);
+    const totalRoles = enabledRoles.reduce((sum, role) => sum + role.count, 0);
+    if (totalRoles !== state.playerCount) {
+      // eslint-disable-next-line no-console
+      console.warn("[invariant] role count mismatch", totalRoles, state.playerCount);
+    }
+    if (state.phase !== "SETUP_ROLE_POOL" && state.seats.some((seat) => !seat.roleId)) {
+      // eslint-disable-next-line no-console
+      console.warn("[invariant] missing roleId on seats");
+    }
   }, [state]);
 
   const enabledRoles = useMemo(
@@ -120,7 +150,7 @@ export const App = () => {
     if (state.dealSeatIndex + 1 >= state.playerCount) {
       dispatch({
         type: "ADD_LOG",
-        entry: createLog(state.round, "DEAL_MODE", "派身份完成")
+        entry: createLog(state.round, "DEAL_MODE", "DEAL_COMPLETED：派身份完成")
       });
       dispatch({ type: "START_STEP", stepId: "NIGHT_START" });
       dispatch({ type: "SET_PHASE", phase: "NIGHT" });
@@ -140,9 +170,17 @@ export const App = () => {
     if (state.stepStatus === "paused") {
       audioRef.current.play().catch(() => null);
       dispatch({ type: "RESUME_STEP" });
+      dispatch({
+        type: "ADD_LOG",
+        entry: createLog(state.round, state.phase, "STEP_RESUMED：繼續播放")
+      });
     } else {
       audioRef.current.pause();
       dispatch({ type: "PAUSE_STEP" });
+      dispatch({
+        type: "ADD_LOG",
+        entry: createLog(state.round, state.phase, "STEP_PAUSED：暫停")
+      });
     }
   };
 
@@ -152,6 +190,10 @@ export const App = () => {
     audioRef.current.src = step.audioFile as string;
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(() => null);
+    dispatch({
+      type: "ADD_LOG",
+      entry: createLog(state.round, state.phase, "STEP_REPLAYED：重播")
+    });
   };
 
   const handleSkip = () => {
@@ -168,6 +210,12 @@ export const App = () => {
     link.download = "werewolf-log.json";
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleReset = () => {
+    clearState().catch(() => null);
+    setState(createInitialState());
+    setCurrentTab("開局");
   };
 
   const currentSeat = state.seats[state.dealSeatIndex];
@@ -230,13 +278,17 @@ export const App = () => {
       );
     }
 
-    return <LogPage logs={state.logs} onExport={handleExport} />;
+    return <LogPage logs={state.logs} onExport={handleExport} onReset={handleReset} />;
   };
 
   const roleSummary = countByCamp(enabledRoles);
   const godIds = new Set(["seer", "witch", "hunter"]);
-  const godCount = enabledRoles.filter((role) => godIds.has(role.id)).length;
-  const villagerCount = enabledRoles.filter((role) => role.id === "villager").length;
+  const godCount = enabledRoles
+    .filter((role) => godIds.has(role.id))
+    .reduce((sum, role) => sum + role.count, 0);
+  const villagerCount = enabledRoles
+    .filter((role) => role.id === "villager")
+    .reduce((sum, role) => sum + role.count, 0);
 
   return (
     <div className="app">

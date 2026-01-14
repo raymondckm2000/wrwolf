@@ -30,6 +30,35 @@ const shuffle = <T,>(items: T[]): T[] => {
   return array;
 };
 
+const createNightRuntime = (): GameState["runtime"]["night"] => ({
+  wolfTarget: null,
+  seerCheck: null,
+  witchSave: false,
+  witchPoisonTarget: null,
+  resolvedDeaths: []
+});
+
+const createDayRuntime = (): GameState["runtime"]["day"] => ({
+  voteMatrix: {},
+  executedSeat: null,
+  tieSeats: [],
+  reVoteCount: 0
+});
+
+const createResources = (): GameState["runtime"]["resources"] => ({
+  witch: {
+    antidoteAvailable: true,
+    poisonAvailable: true
+  },
+  hunter: {
+    shotAvailable: true
+  }
+});
+
+const createPending = (): GameState["runtime"]["pending"] => ({
+  hunterShotFrom: null
+});
+
 export const createLog = (round: number, phase: string, messageZh: string): LogEntry => ({
   id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
   round,
@@ -40,6 +69,44 @@ export const createLog = (round: number, phase: string, messageZh: string): LogE
 
 export const getStep = (stepId: string | null): StepConfig | undefined =>
   stepsConfig.find((step) => step.id === stepId);
+
+const getSeatByRole = (state: GameState, roleId: string) =>
+  state.seats.find((seat) => seat.roleId === roleId);
+
+const isSeatAlive = (state: GameState, seatNo: number | null) => {
+  if (seatNo === null) return false;
+  return state.seats.some((seat) => seat.seatNo === seatNo && seat.alive);
+};
+
+const normalizeVoteMatrix = (state: GameState, matrix: Record<number, number[]>) => {
+  const aliveSeats = new Set(state.seats.filter((seat) => seat.alive).map((seat) => seat.seatNo));
+  return Object.entries(matrix).reduce<Record<number, number[]>>((acc, [target, voters]) => {
+    const targetSeat = Number(target);
+    if (!aliveSeats.has(targetSeat)) return acc;
+    const filteredVoters = Array.from(
+      new Set(voters.filter((voter) => aliveSeats.has(voter)))
+    );
+    acc[targetSeat] = filteredVoters;
+    return acc;
+  }, {});
+};
+
+const computeVoteResult = (matrix: Record<number, number[]>) => {
+  const voteCounts = Object.entries(matrix).map(([target, voters]) => ({
+    target: Number(target),
+    count: voters.length
+  }));
+  if (!voteCounts.length) {
+    return { executedSeat: null, tieSeats: [] };
+  }
+  const sorted = [...voteCounts].sort((a, b) => b.count - a.count);
+  const topCount = sorted[0]?.count ?? 0;
+  const topSeats = sorted.filter((entry) => entry.count === topCount).map((entry) => entry.target);
+  return {
+    executedSeat: topSeats.length === 1 ? topSeats[0] : null,
+    tieSeats: topSeats.length > 1 ? topSeats : []
+  };
+};
 
 const getNextStepId = (currentId: string | null): string | null => {
   if (!currentId) {
@@ -77,11 +144,12 @@ export const createInitialState = (): GameState => ({
   audioUnlocked: false,
   rulesLocked: false,
   dealSeatIndex: 0,
-  pendingNightKill: null,
-  pendingWitchSave: false,
-  pendingWitchPoison: null,
-  pendingVotes: {},
-  pendingExecutionHunterTarget: null
+  runtime: {
+    night: createNightRuntime(),
+    day: createDayRuntime(),
+    resources: createResources(),
+    pending: createPending()
+  }
 });
 
 export const gameReducer = (state: GameState, action: EngineAction): GameState => {
@@ -141,10 +209,26 @@ export const gameReducer = (state: GameState, action: EngineAction): GameState =
     }
     case "START_STEP": {
       const step = getStep(action.stepId);
+      const nextPhase = step?.phase ?? state.phase;
+      let runtime = state.runtime;
+      if (action.stepId === "NIGHT_START") {
+        runtime = {
+          ...runtime,
+          night: createNightRuntime()
+        };
+      }
+      if (action.stepId === "DAY_START") {
+        runtime = {
+          ...runtime,
+          day: createDayRuntime()
+        };
+      }
       return {
         ...state,
         stepId: action.stepId,
-        stepStatus: step?.requiresInput ? "waitInput" : "playing"
+        stepStatus: step?.requiresInput ? "waitInput" : "playing",
+        phase: nextPhase,
+        runtime
       };
     }
     case "PAUSE_STEP":
@@ -153,7 +237,7 @@ export const gameReducer = (state: GameState, action: EngineAction): GameState =
       return { ...state, stepStatus: "playing" };
     case "SKIP_STEP": {
       const step = getStep(state.stepId);
-      const message = step ? `${step.titleZh} - 已跳過` : "已跳過步驟";
+      const message = step ? `STEP_SKIPPED：${step.titleZh}` : "STEP_SKIPPED";
       return {
         ...state,
         logs: [createLog(state.round, state.phase, message), ...state.logs]
@@ -164,14 +248,21 @@ export const gameReducer = (state: GameState, action: EngineAction): GameState =
       if (!stepId) return state;
       if (stepId === "WEREWOLF_STEP") {
         const targetSeat = action.payload as number | null;
+        const validatedTarget = isSeatAlive(state, targetSeat) ? targetSeat : null;
         return {
           ...state,
-          pendingNightKill: targetSeat,
+          runtime: {
+            ...state.runtime,
+            night: {
+              ...state.runtime.night,
+              wolfTarget: validatedTarget
+            }
+          },
           logs: [
             createLog(
               state.round,
               state.phase,
-              `狼人選擇擊殺：${targetSeat ?? "不殺"}`
+              `WOLF_TARGET：${validatedTarget ?? "不殺"}`
             ),
             ...state.logs
           ]
@@ -179,128 +270,252 @@ export const gameReducer = (state: GameState, action: EngineAction): GameState =
       }
       if (stepId === "SEER_STEP") {
         const targetSeat = action.payload as number;
+        const validatedTarget = isSeatAlive(state, targetSeat) ? targetSeat : null;
+        const targetData = validatedTarget
+          ? state.seats.find((seat) => seat.seatNo === validatedTarget)
+          : null;
         return {
           ...state,
-          logs: [
-            createLog(state.round, state.phase, `預言家驗了 ${targetSeat} 號`),
-            ...state.logs
-          ]
-        };
-      }
-      if (stepId === "WITCH_STEP") {
-        const payload = action.payload as {
-          action: "save" | "poison" | "none";
-          targetSeat: number | null;
-        };
-        const save = payload.action === "save";
-        const poisonTarget = payload.action === "poison" ? payload.targetSeat : null;
-        return {
-          ...state,
-          pendingWitchSave: save,
-          pendingWitchPoison: poisonTarget,
           logs: [
             createLog(
               state.round,
               state.phase,
-              `女巫行動：${payload.action === "none" ? "不使用" : payload.action}`
+              `SEER_CHECK：${validatedTarget ?? "無效"}${
+                targetData ? `（${targetData.camp === "wolf" ? "狼人" : "好人"}）` : ""
+              }`
+            ),
+            ...state.logs
+          ],
+          runtime: {
+            ...state.runtime,
+            night: {
+              ...state.runtime.night,
+              seerCheck: validatedTarget
+            }
+          }
+        };
+      }
+      if (stepId === "WITCH_STEP") {
+        const payload = action.payload as {
+          save: boolean;
+          poisonTarget: number | null;
+        };
+        const witchSeat = getSeatByRole(state, "witch");
+        const isSelfSaveBlocked =
+          state.rules.witchFirstNightNoSelfSave &&
+          state.round === 1 &&
+          witchSeat &&
+          state.runtime.night.wolfTarget === witchSeat.seatNo;
+        const canSave =
+          payload.save &&
+          state.runtime.night.wolfTarget !== null &&
+          state.runtime.resources.witch.antidoteAvailable &&
+          !isSelfSaveBlocked;
+        const requestedPoison = isSeatAlive(state, payload.poisonTarget)
+          ? payload.poisonTarget
+          : null;
+        const canPoison =
+          requestedPoison !== null && state.runtime.resources.witch.poisonAvailable;
+        const save = canSave;
+        const poisonTarget =
+          state.rules.witchNoDoublePotionSameNight && save ? null : canPoison ? requestedPoison : null;
+        const resources = {
+          ...state.runtime.resources,
+          witch: {
+            antidoteAvailable: save
+              ? false
+              : state.runtime.resources.witch.antidoteAvailable,
+            poisonAvailable: poisonTarget
+              ? false
+              : state.runtime.resources.witch.poisonAvailable
+          }
+        };
+        return {
+          ...state,
+          runtime: {
+            ...state.runtime,
+            resources,
+            night: {
+              ...state.runtime.night,
+              witchSave: save,
+              witchPoisonTarget: poisonTarget
+            }
+          },
+          logs: [
+            createLog(
+              state.round,
+              state.phase,
+              `WITCH_DECISION：${
+                save ? "解藥" : "不救"
+              }${poisonTarget ? `，毒 ${poisonTarget} 號` : ""}`
             ),
             ...state.logs
           ]
         };
       }
       if (stepId === "DAY_VOTING") {
-        const votes = action.payload as Record<number, number[]>;
+        const votes = normalizeVoteMatrix(state, action.payload as Record<number, number[]>);
+        const { executedSeat, tieSeats } = computeVoteResult(votes);
         return {
           ...state,
-          pendingVotes: votes,
-          logs: [createLog(state.round, state.phase, "白天投票已記錄"), ...state.logs]
-        };
-      }
-      if (stepId === "DAY_EXECUTION") {
-        const hunterTarget = action.payload as number | null;
-        return {
-          ...state,
-          pendingExecutionHunterTarget: hunterTarget,
+          runtime: {
+            ...state.runtime,
+            day: {
+              ...state.runtime.day,
+              voteMatrix: votes,
+              executedSeat,
+              tieSeats,
+              reVoteCount:
+                tieSeats.length > 1 ? state.runtime.day.reVoteCount + 1 : state.runtime.day.reVoteCount
+            }
+          },
           logs: [
             createLog(
               state.round,
               state.phase,
-              hunterTarget ? `獵人帶走 ${hunterTarget} 號` : "獵人未帶人"
+              `VOTES_RECORDED：${executedSeat ? `最高票 ${executedSeat} 號` : "平票"}`
             ),
             ...state.logs
           ]
+        };
+      }
+      if (stepId === "HUNTER_RESOLVE") {
+        const hunterTarget = action.payload as number | null;
+        if (!state.rules.hunterMaySkipOnDeath && hunterTarget === null) {
+          return state;
+        }
+        const validatedTarget = isSeatAlive(state, hunterTarget) ? hunterTarget : null;
+        const shouldConsumeShot = Boolean(validatedTarget);
+        return {
+          ...state,
+          runtime: {
+            ...state.runtime,
+            resources: {
+              ...state.runtime.resources,
+              hunter: {
+                shotAvailable: shouldConsumeShot
+                  ? false
+                  : state.runtime.resources.hunter.shotAvailable
+              }
+            },
+            pending: {
+              ...state.runtime.pending,
+              hunterShotFrom: null
+            }
+          },
+          logs: [
+            createLog(
+              state.round,
+              state.phase,
+              validatedTarget
+                ? `HUNTER_SHOT：帶走 ${validatedTarget} 號`
+                : "HUNTER_SHOT：未帶人"
+            ),
+            ...state.logs
+          ],
+          seats: validatedTarget
+            ? state.seats.map((seat) =>
+                seat.seatNo === validatedTarget ? { ...seat, alive: false } : seat
+              )
+            : state.seats
         };
       }
       return state;
     }
     case "ADVANCE_STEP": {
       const stepId = state.stepId;
+      if (!stepId) return state;
+      let nextState = state;
       if (stepId === "NIGHT_RESOLVE") {
         const deaths: number[] = [];
-        if (state.pendingNightKill && !state.pendingWitchSave) {
-          deaths.push(state.pendingNightKill);
+        if (nextState.runtime.night.wolfTarget && !nextState.runtime.night.witchSave) {
+          deaths.push(nextState.runtime.night.wolfTarget);
         }
-        if (state.pendingWitchPoison) {
-          deaths.push(state.pendingWitchPoison);
+        if (nextState.runtime.night.witchPoisonTarget) {
+          deaths.push(nextState.runtime.night.witchPoisonTarget);
         }
-        const nextSeats = state.seats.map((seat) =>
-          deaths.includes(seat.seatNo) ? { ...seat, alive: false } : seat
+        const uniqueDeaths = Array.from(new Set(deaths)).filter((seatNo) =>
+          nextState.seats.some((seat) => seat.seatNo === seatNo && seat.alive)
         );
-        return {
-          ...state,
+        const nextSeats = nextState.seats.map((seat) =>
+          uniqueDeaths.includes(seat.seatNo) ? { ...seat, alive: false } : seat
+        );
+        const hunterDeath = uniqueDeaths.find((seatNo) => {
+          const seat = nextState.seats.find((item) => item.seatNo === seatNo);
+          return seat?.roleId === "hunter";
+        });
+        nextState = {
+          ...nextState,
           seats: nextSeats,
-          pendingNightKill: null,
-          pendingWitchSave: false,
-          pendingWitchPoison: null,
           logs: [
             createLog(
-              state.round,
-              state.phase,
-              deaths.length
-                ? `夜晚死亡：${deaths.join(", ")}`
-                : "夜晚平安"
+              nextState.round,
+              nextState.phase,
+              uniqueDeaths.length
+                ? `NIGHT_DEATHS：${uniqueDeaths.join(", ")}`
+                : "NIGHT_DEATHS：平安夜"
             ),
-            ...state.logs
-          ]
+            ...nextState.logs
+          ],
+          runtime: {
+            ...nextState.runtime,
+            night: {
+              ...nextState.runtime.night,
+              resolvedDeaths: uniqueDeaths
+            },
+            pending: {
+              ...nextState.runtime.pending,
+              hunterShotFrom:
+                hunterDeath && nextState.runtime.resources.hunter.shotAvailable
+                  ? hunterDeath
+                  : nextState.runtime.pending.hunterShotFrom
+            }
+          }
         };
       }
       if (stepId === "DAY_EXECUTION") {
-        const voteCounts = Object.entries(state.pendingVotes).map(([target, voters]) => ({
-          target: Number(target),
-          count: voters.length
-        }));
-        const sorted = [...voteCounts].sort((a, b) => b.count - a.count);
-        const top = sorted[0];
-        const executedSeat = top?.target ?? null;
-        const executedSeatData = state.seats.find((seat) => seat.seatNo === executedSeat);
-        const hunterTarget =
-          executedSeatData?.roleId === "hunter" ? state.pendingExecutionHunterTarget : null;
-        const nextSeats = state.seats.map((seat) => {
-          if (seat.seatNo === executedSeat) return { ...seat, alive: false };
-          if (hunterTarget && seat.seatNo === hunterTarget) return { ...seat, alive: false };
+        const executedSeat = nextState.runtime.day.executedSeat;
+        const executedSeatData = nextState.seats.find((seat) => seat.seatNo === executedSeat);
+        const nextSeats = nextState.seats.map((seat) => {
+          if (executedSeat && seat.seatNo === executedSeat) return { ...seat, alive: false };
           return seat;
         });
-        return {
-          ...state,
+        const hunterDeath =
+          executedSeatData?.roleId === "hunter" &&
+          nextState.runtime.resources.hunter.shotAvailable
+            ? executedSeat
+            : null;
+        nextState = {
+          ...nextState,
           seats: nextSeats,
-          pendingExecutionHunterTarget: null,
           logs: [
             createLog(
-              state.round,
-              state.phase,
+              nextState.round,
+              nextState.phase,
               executedSeat
-                ? `處決 ${executedSeat} 號${hunterTarget ? `，獵人帶走 ${hunterTarget} 號` : ""}`
-                : "無人被處決"
+                ? `EXECUTION：處決 ${executedSeat} 號`
+                : "EXECUTION：無人被處決"
             ),
-            ...state.logs
-          ]
+            ...nextState.logs
+          ],
+          runtime: {
+            ...nextState.runtime,
+            pending: {
+              ...nextState.runtime.pending,
+              hunterShotFrom: hunterDeath ?? nextState.runtime.pending.hunterShotFrom
+            }
+          }
         };
       }
       if (stepId === "CHECK_WIN") {
         const alive = state.seats.filter((seat) => seat.alive);
         const wolves = alive.filter((seat) => seat.camp === "wolf").length;
         const others = alive.filter((seat) => seat.camp !== "wolf").length;
-        if (wolves === 0 || wolves >= others) {
+        const godIds = new Set(["seer", "witch", "hunter"]);
+        const totalGods = state.seats.filter((seat) => seat.roleId && godIds.has(seat.roleId)).length;
+        const aliveGods = alive.filter((seat) => seat.roleId && godIds.has(seat.roleId)).length;
+        const allGodsDead = state.rules.winByRemainingSkillsEdge && totalGods > 0 && aliveGods === 0;
+        if (wolves === 0 || wolves >= others || allGodsDead) {
           return {
             ...state,
             phase: "GAME_END",
@@ -310,8 +525,9 @@ export const gameReducer = (state: GameState, action: EngineAction): GameState =
               createLog(
                 state.round,
                 state.phase,
-                wolves === 0 ? "好人獲勝" : "狼人獲勝"
+                `WIN_CHECK：${wolves === 0 ? "好人獲勝" : "狼人獲勝"}`
               ),
+              createLog(state.round, state.phase, "GAME_END：遊戲結束"),
               ...state.logs
             ]
           };
@@ -321,23 +537,41 @@ export const gameReducer = (state: GameState, action: EngineAction): GameState =
           phase: "NIGHT",
           stepId: "NIGHT_START",
           round: state.round + 1,
-          stepStatus: "playing"
+          stepStatus: "playing",
+          logs: [
+            createLog(
+              state.round,
+              state.phase,
+              `WIN_CHECK：狼人 ${wolves}，好人 ${others}，未結束`
+            ),
+            ...state.logs
+          ]
         };
       }
 
-      const nextStepId = getNextStepId(stepId);
+      let nextStepId = getNextStepId(stepId);
+      if (
+        nextState.runtime.pending.hunterShotFrom &&
+        (stepId === "NIGHT_RESOLVE" || stepId === "DAY_EXECUTION")
+      ) {
+        nextStepId = "HUNTER_RESOLVE";
+      }
+      if (stepId === "HUNTER_RESOLVE") {
+        nextStepId = "CHECK_WIN";
+      }
+      if (stepId === "DAY_EXECUTION" && !nextState.runtime.pending.hunterShotFrom) {
+        nextStepId = "CHECK_WIN";
+      }
       if (!nextStepId) {
         return state;
       }
       const nextStep = getStep(nextStepId);
-      const nextPhase = nextStep?.phase ?? state.phase;
-      const nextRound = stepId === "CHECK_WIN" ? state.round + 1 : state.round;
+      const nextPhase = nextStep?.phase ?? nextState.phase;
       return {
-        ...state,
+        ...nextState,
         stepId: nextStepId,
         phase: nextPhase,
-        round: nextRound,
-        stepStatus: "playing"
+        stepStatus: nextStep?.requiresInput ? "waitInput" : "playing"
       };
     }
     case "RESET_GAME": {
@@ -356,6 +590,14 @@ export const startNewGame = (state: GameState): GameState => {
     seats,
     phase: "DEAL_MODE",
     dealSeatIndex: 0,
-    logs: [createLog(state.round, "DEAL_MODE", "開始派身份"), ...state.logs]
+    round: 1,
+    stepId: null,
+    runtime: {
+      night: createNightRuntime(),
+      day: createDayRuntime(),
+      resources: createResources(),
+      pending: createPending()
+    },
+    logs: [createLog(1, "DEAL_MODE", "開始派身份"), ...state.logs]
   };
 };

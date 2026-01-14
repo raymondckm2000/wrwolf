@@ -19,8 +19,11 @@ export const SeatGrid = ({
         <button
           key={seat.seatNo}
           type="button"
-          className={`seat-button ${selected === seat.seatNo ? "selected" : ""}`}
-          onClick={() => onSelect(seat.seatNo)}
+          className={`seat-button ${selected === seat.seatNo ? "selected" : ""} ${
+            seat.alive ? "" : "dead"
+          }`}
+          onClick={() => (seat.alive ? onSelect(seat.seatNo) : null)}
+          disabled={!seat.alive}
         >
           {seat.seatNo}
         </button>
