@@ -1,0 +1,265 @@
+:root {
+  color-scheme: dark;
+  font-family: "Inter", system-ui, sans-serif;
+  background-color: #0f1115;
+  color: #f5f5f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0f1115;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page {
+  padding: 16px 16px 96px;
+}
+
+.card {
+  background: #181b22;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid #262a34;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.section-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #13161c;
+  border-top: 1px solid #262a34;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 8px;
+  gap: 8px;
+}
+
+.tab-button {
+  background: #1c2029;
+  border: none;
+  color: #cbd5f0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.tab-button.active {
+  background: #2b3242;
+  color: #fff;
+}
+
+.primary-button {
+  background: #e94b5f;
+  color: #fff;
+  border: none;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 16px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.secondary-button {
+  background: #2b3242;
+  color: #fff;
+  border: none;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-weight: 600;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #2b3242;
+  color: #cbd5f0;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 6, 10, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 20;
+}
+
+.modal {
+  width: min(460px, 100%);
+  background: #171a21;
+  border-radius: 20px;
+  padding: 20px;
+  border: 1px solid #2a2f3b;
+}
+
+.fullscreen {
+  position: fixed;
+  inset: 0;
+  background: #0f1115;
+  color: #fff;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px;
+}
+
+.fullscreen h1 {
+  font-size: 36px;
+  margin: 0 0 12px;
+}
+
+.fullscreen .big-card {
+  flex: 1;
+  border-radius: 24px;
+  background: #11141a;
+  border: 2px solid #2c3240;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 24px 0;
+}
+
+.toggle-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px solid #2b3242;
+  background: #1c2029;
+  color: #fff;
+  font-weight: 600;
+}
+
+.rule-description {
+  font-size: 14px;
+  color: #a7b0c5;
+  margin-top: 8px;
+}
+
+.step-card {
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  width: min(320px, calc(100% - 32px));
+  background: #171a21;
+  border-radius: 16px;
+  border: 1px solid #2a2f3b;
+  padding: 16px;
+  z-index: 15;
+}
+
+.step-card h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.control-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.seat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.seat-button {
+  background: #1c2029;
+  border: 1px solid #2a2f3b;
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 0;
+  font-weight: 600;
+}
+
+.seat-button.selected {
+  background: #e94b5f;
+  border-color: #e94b5f;
+}
+
+.input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-row input {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #2a2f3b;
+  background: #12151c;
+  color: #fff;
+}
+
+.vote-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.vote-card {
+  background: #1c2029;
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid #2a2f3b;
+}
+
+.log-item {
+  padding: 8px 0;
+  border-bottom: 1px solid #2a2f3b;
+  font-size: 14px;
+  color: #cbd5f0;
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}
+
+.small {
+  font-size: 12px;
+  color: #8f98ad;
+}
