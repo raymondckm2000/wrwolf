@@ -5,6 +5,11 @@ import { RuleToggle } from "../../components/RuleToggle";
 type RulesPageProps = {
   rules: Rules;
   locked: boolean;
+  playerCount: number;
+  totalSelected: number;
+  wolvesCount: number;
+  canStart: boolean;
+  startBlockReason: string;
   onToggleRule: (key: keyof Rules, value: boolean) => void;
   onStartGame: () => void;
 };
@@ -12,6 +17,11 @@ type RulesPageProps = {
 export const RulesPage = ({
   rules,
   locked,
+  playerCount,
+  totalSelected,
+  wolvesCount,
+  canStart,
+  startBlockReason,
   onToggleRule,
   onStartGame
 }: RulesPageProps) => {
@@ -28,9 +38,19 @@ export const RulesPage = ({
         />
       ))}
 
-      <button className="primary-button" type="button" onClick={onStartGame}>
+      <button
+        className="primary-button"
+        type="button"
+        onClick={onStartGame}
+        disabled={!canStart}
+      >
         開始遊戲
       </button>
+      <div className="small" style={{ marginTop: "12px" }}>
+        診斷：playerCount={playerCount}，totalSelected={totalSelected}，
+        wolvesCount={wolvesCount}，canStart={String(canStart)}，reason=
+        {startBlockReason}
+      </div>
     </div>
   );
 };

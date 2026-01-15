@@ -83,6 +83,24 @@ export const App = () => {
     () => state.rolesPool.filter((role) => role.enabled),
     [state.rolesPool]
   );
+  const totalSelected = useMemo(
+    () => enabledRoles.reduce((sum, role) => sum + role.count, 0),
+    [enabledRoles]
+  );
+  const wolvesCount = useMemo(
+    () =>
+      enabledRoles
+        .filter((role) => role.camp === "wolf")
+        .reduce((sum, role) => sum + role.count, 0),
+    [enabledRoles]
+  );
+  const canStart = totalSelected === state.playerCount && wolvesCount >= 1;
+  const startBlockReason =
+    totalSelected !== state.playerCount
+      ? "Total roles must match player count"
+      : wolvesCount < 1
+        ? "Need at least 1 wolf"
+        : "Ready";
 
   const step = getStep(state.stepId);
 
@@ -121,6 +139,7 @@ export const App = () => {
   }, [state.phase, state.stepId]);
 
   const handleStartGame = () => {
+    if (!canStart) return;
     setCurrentTab("開局");
     dispatch({ type: "SET_PHASE", phase: "PRE_GAME_CONFIRM" });
   };
@@ -251,6 +270,10 @@ export const App = () => {
         <SetupPage
           playerCount={state.playerCount}
           roles={state.rolesPool}
+          totalSelected={totalSelected}
+          wolvesCount={wolvesCount}
+          canStart={canStart}
+          startBlockReason={startBlockReason}
           onPlayerCountChange={(next) =>
             dispatch({ type: "SET_PLAYER_COUNT", value: next })
           }
@@ -270,6 +293,11 @@ export const App = () => {
         <RulesPage
           rules={state.rules}
           locked={state.rulesLocked}
+          canStart={canStart}
+          startBlockReason={startBlockReason}
+          playerCount={state.playerCount}
+          totalSelected={totalSelected}
+          wolvesCount={wolvesCount}
           onToggleRule={(key, value) =>
             dispatch({ type: "SET_RULE", key, value })
           }
@@ -313,7 +341,12 @@ export const App = () => {
               >
                 返回
               </button>
-              <button className="primary-button" type="button" onClick={handleConfirmStart}>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={handleConfirmStart}
+                disabled={!canStart}
+              >
                 正式開始遊戲
               </button>
             </div>
