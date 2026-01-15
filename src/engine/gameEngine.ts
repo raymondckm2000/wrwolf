@@ -158,10 +158,21 @@ export const gameReducer = (state: GameState, action: EngineAction): GameState =
       return action.state;
     case "SET_PLAYER_COUNT": {
       const count = Math.min(20, Math.max(5, action.value));
+      const enabledRoles = state.rolesPool.filter((role) => role.enabled);
+      const totalSelected = enabledRoles.reduce((sum, role) => sum + role.count, 0);
+      const delta = count - totalSelected;
+      const rolesPool = state.rolesPool.map((role) => {
+        if (role.id !== "villager") return role;
+        if (role.enabled) {
+          return { ...role, count: Math.max(0, role.count + delta) };
+        }
+        return { ...role, enabled: true, count: Math.max(0, delta) };
+      });
       return {
         ...state,
         playerCount: count,
-        seats: createSeats(count)
+        seats: createSeats(count),
+        rolesPool
       };
     }
     case "ADD_LOG":

@@ -4,6 +4,10 @@ import { RoleTile } from "../../components/RoleTile";
 type SetupPageProps = {
   playerCount: number;
   roles: Role[];
+  totalSelected: number;
+  wolvesCount: number;
+  canStart: boolean;
+  startBlockReason: string;
   onPlayerCountChange: (next: number) => void;
   onToggleRole: (roleId: string, enabled: boolean) => void;
   onOpenRules: () => void;
@@ -36,6 +40,10 @@ const renderRoleSection = (
 export const SetupPage = ({
   playerCount,
   roles,
+  totalSelected,
+  wolvesCount,
+  canStart,
+  startBlockReason,
   onPlayerCountChange,
   onToggleRole,
   onOpenRules
@@ -75,6 +83,12 @@ export const SetupPage = ({
       <button className="primary-button" type="button" onClick={onOpenRules}>
         變化規則
       </button>
+
+      <div className="small" style={{ marginTop: "12px" }}>
+        診斷：playerCount={playerCount}，totalSelected={totalSelected}，
+        wolvesCount={wolvesCount}，canStart={String(canStart)}，reason=
+        {startBlockReason}
+      </div>
     </div>
   );
 };
