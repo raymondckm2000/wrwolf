@@ -8,14 +8,18 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Werewolf Host Assistant",
-        short_name: "Werewolf Host",
-        theme_color: "#0f1115",
-        background_color: "#0f1115",
+        name: "Moonlog — Werewolf Assistant",
+        short_name: "Moonlog",
+        description: "Private, deterministic Werewolf game tracking.",
+        theme_color: "#171914",
+        background_color: "#f3f0e7",
         display: "standalone",
         scope: "/",
         start_url: "/"
       }
     })
-  ]
+  ],
+  test: {
+    environment: "node"
+  }
 });
